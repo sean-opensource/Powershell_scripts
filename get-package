@@ -1,0 +1,44 @@
+# Ensure PackageManagement module is loaded
+Import-Module PackageManagement
+
+# Define the list of computers
+$computers = @('ComputerName1', 'ComputerName2')  # Replace with your computer names
+
+# Output file to save results
+$outputFile = "C:\path\to\output.csv"  # Replace with your desired output path
+
+# Initialize results array
+$results = @()
+
+foreach ($computer in $computers) {
+    # Check if the computer is online
+    if (Test-Connection -ComputerName $computer -Count 1 -Quiet) {
+        Write-Host "Gathering information from $computer..."
+
+        # Using Invoke-Command to run Get-Package remotely
+        try {
+            $software = Invoke-Command -ComputerName $computer -ScriptBlock {
+                Get-Package
+            }
+
+            foreach ($program in $software) {
+                $results += [PSCustomObject]@{
+                    'ComputerName'  = $computer
+                    'Name'          = $program.Name
+                    'Version'       = $program.Version
+                    'ProviderName'  = $program.ProviderName
+                    'Source'        = $program.Source
+                }
+            }
+        } catch {
+            Write-Warning "Error occurred while querying $computer: $_"
+        }
+    } else {
+        Write-Warning "$computer is offline or not reachable."
+    }
+}
+
+# Export results to CSV
+$results | Export-Csv -Path $outputFile -NoTypeInformation
+
+Write-Host "Script completed. Results saved to $outputFile"
