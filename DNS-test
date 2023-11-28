@@ -1,0 +1,101 @@
+function Show-Menu {
+    param (
+        [string]$Title = 'DNS Benchmark Menu'
+    )
+    Clear-Host
+    Write-Host "================ $Title ================"
+
+    Write-Host "1: Run DNS Benchmark Test"
+    Write-Host "2: Compare Latest Results with Previous Runs"
+    Write-Host "Q: Exit"
+}
+
+function Run-DnsBenchmark {
+    # Define the top 50 websites (excluding social media)
+    $websites = @(
+        "google.com", "youtube.com", "amazon.com", "wikipedia.org", "yahoo.com", "reddit.com",
+        "ebay.com", "bing.com", "netflix.com", "office.com", "live.com", "twitch.tv",
+        "microsoft.com", "apple.com", "adobe.com", "tmall.com", "cnn.com", "nytimes.com",
+        "paypal.com", "wordpress.com", "linkedin.com", "msn.com", "imdb.com", "pinterest.com",
+        "bbc.co.uk", "espn.com", "craigslist.org", "walmart.com", "yelp.com", "quora.com",
+        "weather.com", "homedepot.com", "foxnews.com", "etsy.com", "target.com", "bbc.com",
+        "booking.com", "bestbuy.com", "dropbox.com", "indeed.com", "tripadvisor.com", "zillow.com",
+        "usps.com", "cnet.com", "salesforce.com", "steamcommunity.com", "washingtonpost.com", "chase.com",
+        "nih.gov", "irs.gov"
+    )
+
+    # Prepare the results array
+    $results = @()
+
+    foreach ($site in $websites) {
+        try {
+            $startTime = Get-Date
+            Resolve-DnsName $site -ErrorAction Stop | Out-Null
+            $endTime = Get-Date
+            $responseTime = $endTime - $startTime
+
+            $results += [PSCustomObject]@{
+                Website = $site
+                ResponseTime = $responseTime.TotalMilliseconds
+                Date = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            }
+        } catch {
+            $results += [PSCustomObject]@{
+                Website = $site
+                ResponseTime = "Failed"
+                Date = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            }
+        }
+    }
+
+    $csvPath = "DNS_Benchmark_Results_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
+    $results | Export-Csv -Path $csvPath -NoTypeInformation
+    Write-Host "DNS benchmarking completed. Results saved to $csvPath"
+}
+
+function Compare-Results {
+    $files = Get-ChildItem -Path . -Filter "DNS_Benchmark_Results_*.csv"
+    if ($files.Count -lt 2) {
+        Write-Host "Not enough data for comparison. Please run at least two benchmarks."
+        return
+    }
+
+    $latestFile = $files | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $previousFile = $files | Sort-Object LastWriteTime -Descending | Select-Object -Skip 1 -First 1
+
+    $latestResults = Import-Csv -Path $latestFile.FullName
+    $previousResults = Import-Csv -Path $previousFile.FullName
+
+    $comparison = @()
+    foreach ($site in $latestResults) {
+        $previousSite = $previousResults | Where-Object { $_.Website -eq $site.Website }
+        if ($previousSite) {
+            $difference = [math]::Round($site.ResponseTime - $previousSite.ResponseTime, 2)
+            $comparison += [PSCustomObject]@{
+                Website = $site.Website
+                LatestResponseTime = $site.ResponseTime
+                PreviousResponseTime = $previousSite.ResponseTime
+                Difference = $difference
+            }
+        }
+    }
+
+    $comparison | Format-Table -AutoSize
+}
+
+do {
+    Show-Menu
+    $input = Read-Host "Please make a selection"
+    switch ($input) {
+        '1' {
+            Run-DnsBenchmark
+        }
+        '2' {
+            Compare-Results
+        }
+        'Q' {
+            return
+        }
+    }
+    pause
+} while ($input -ne 'Q')
