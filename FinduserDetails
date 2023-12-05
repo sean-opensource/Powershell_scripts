@@ -1,0 +1,36 @@
+# Import the Active Directory module
+Import-Module ActiveDirectory
+
+# Define the path to the CSV file
+$csvFilePath = "C:\path\to\your\file.csv"
+
+# Read the CSV file. Assuming the column containing the usernames is named 'Username'
+$userList = Import-Csv -Path $csvFilePath
+
+# Prepare an array to hold the results
+$results = @()
+
+foreach ($user in $userList) {
+    # Retrieve user details from AD
+    $adUser = Get-ADUser -Filter "SamAccountName -eq '$($user.Username)'" -Properties DisplayName
+
+    if ($adUser) {
+        # Add the results to the array
+        $results += [PSCustomObject]@{
+            Username = $user.Username
+            FullName = $adUser.DisplayName
+        }
+    } else {
+        # Handle the case where the user is not found in AD
+        $results += [PSCustomObject]@{
+            Username = $user.Username
+            FullName = "Not Found in AD"
+        }
+    }
+}
+
+# Output the results
+$results | Format-Table -AutoSize
+
+# Optionally, you can export the results to a new CSV file
+$results | Export-Csv -Path "C:\path\to\output.csv" -NoTypeInformation
